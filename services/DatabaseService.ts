@@ -409,6 +409,15 @@ class DatabaseServiceClass {
       await this.logProfileDataForCollection(profileData, profileData.id ? 'update' : 'create', mockId);
       return mockId;
     }
+
+    // Handle profile lookup by name if no ID provided but name exists
+    if (!profileData.id && profileData.name) {
+      const existingProfile = await this.getProfileByName(profileData.name);
+      if (existingProfile) {
+        profileData.id = existingProfile.id;
+        console.log(`Found existing profile for ${profileData.name}, updating instead of creating`);
+      }
+    }
     
     const {
       id,
@@ -490,6 +499,38 @@ class DatabaseServiceClass {
       
       return newProfileId;
     }
+  }
+
+  async getProfileByName(name: string) {
+    await this.ensureReady();
+    
+    if (this.isWebFallback) {
+      const mockProfiles = await this.getAllProfiles();
+      return mockProfiles.find(profile => 
+        profile.name.toLowerCase() === name.toLowerCase()
+      ) || null;
+    }
+    
+    const result = await this.db!.getFirstAsync(
+      'SELECT * FROM profiles WHERE LOWER(name) = LOWER(?)', 
+      [name]
+    );
+    
+    if (!result) return null;
+    
+    return {
+      ...result,
+      tags: result.tags ? JSON.parse(result.tags) : [],
+      parents: result.parents ? JSON.parse(result.parents) : [],
+      kids: result.kids ? JSON.parse(result.kids) : [],
+      brothers: result.brothers ? JSON.parse(result.brothers) : [],
+      sisters: result.sisters ? JSON.parse(result.sisters) : [],
+      siblings: result.siblings ? JSON.parse(result.siblings) : [],
+      pets: result.pets ? JSON.parse(result.pets) : [],
+      foodLikes: result.foodLikes ? JSON.parse(result.foodLikes) : [],
+      foodDislikes: result.foodDislikes ? JSON.parse(result.foodDislikes) : [],
+      interests: result.interests ? JSON.parse(result.interests) : [],
+    };
   }
 
   async addInteraction(interactionData: any) {
