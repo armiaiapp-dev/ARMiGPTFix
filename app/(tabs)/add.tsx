@@ -153,12 +153,28 @@ export default function AddInteractionScreen() {
     } catch (error) {
       console.error('Error processing interaction:', error);
       
+      // Add user message first
       setChatMessages(prev => [...prev, { 
         type: 'user', 
         text: inputText 
-      }, { 
+      }]);
+      
+      // Determine error message based on error type
+      let errorMessage = 'Sorry, I encountered an error processing your request.';
+      
+      if (error.message.includes('No response from OpenAI')) {
+        errorMessage = 'I didn\'t receive a response from the AI service. Please check your internet connection and try again.';
+      } else if (error.message.includes('JSON Parse error') || error.message.includes('Failed to parse AI response')) {
+        errorMessage = 'I had trouble understanding the AI response. Please try rephrasing your request or be more specific.';
+      } else if (error.message.includes('API key')) {
+        errorMessage = 'There\'s an issue with the AI service configuration. Please check that your OpenAI API key is properly set up.';
+      } else if (error.message.includes('AI processing failed')) {
+        errorMessage = 'The AI service encountered an error. Please try again with a simpler request.';
+      }
+      
+      setChatMessages(prev => [...prev, { 
         type: 'ai', 
-        text: 'Sorry, I encountered an error processing your request. Please try again or be more specific about what you need.'
+        text: errorMessage + ' You can also use the manual tabs to add profiles, reminders, or schedule texts directly.'
       }]);
       
       setInputText('');
