@@ -246,25 +246,28 @@ Always be conversational and confirm the user's intent clearly.`
     }
   }
 
-
-
-
-    try {
-      parsedResponse = JSON.parse(cleanedResponse);
-    } catch (parseError) {
-      console.error('JSON Parse Error. Raw response:', response);
-      console.error('Cleaned response:', cleanedResponse);
-      throw new Error(`Failed to parse AI response as JSON: ${parseError.message}`);
-    }
+  mockAdvancedResponse(inputText: string) {
+    const positiveWords = ['happy', 'great', 'awesome', 'good', 'excited', 'love', 'amazing', 'wonderful', 'fantastic'];
     const negativeWords = ['sad', 'upset', 'difficult', 'hard', 'worried', 'stressed', 'surgery', 'problem', 'trouble', 'sick'];
     
-    const lowerText = text.toLowerCase();
+    const lowerText = inputText.toLowerCase();
     const positiveCount = positiveWords.filter(word => lowerText.includes(word)).length;
     const negativeCount = negativeWords.filter(word => lowerText.includes(word)).length;
     
     if (positiveCount > negativeCount) return 'positive';
-    // Don't fallback to mock - throw the actual error
-    throw new Error(`AI processing failed: ${error.message}`);
+    if (negativeCount > positiveCount) return 'negative';
+    return 'neutral';
+  }
+
+  mockReminderResponse(inputText: string, context: any) {
+    return {
+      action: 'create',
+      title: 'Mock Reminder',
+      description: 'This is a mock reminder response',
+      type: 'general',
+      scheduledFor: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      response: 'Mock reminder created successfully!'
+    };
   }
 }
 
