@@ -19,14 +19,15 @@ import { AIService } from '@/services/AIService';
 import { DatabaseService } from '@/services/DatabaseService';
 import { router } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
+import { scheduleReminder, scheduleScheduledText, buildWhenFromComponents } from '@/services/Scheduler';
 
 export default function AddInteractionScreen() {
   const [inputText, setInputText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
-  const [conversationState, setConversationState] = useState('initial'); // 'initial', 'awaiting_reminder_response'
-  const [lastProcessedData, setLastProcessedData] = useState(null);
+  const [conversationState, setConversationState] = useState('ready'); // 'ready', 'awaiting_confirmation'
+  const [pendingActions, setPendingActions] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const inputRef = useRef(null);
   const { isDark } = useTheme();
@@ -43,54 +44,54 @@ export default function AddInteractionScreen() {
 
   const handleSubmit = async () => {
     if (!inputText.trim()) {
-      Alert.alert('Input Required', 'Please describe your interaction first.');
+      Alert.alert('Input Required', 'Please tell me what you need help with.');
       return;
     }
 
     setIsProcessing(true);
     try {
-      if (conversationState === 'initial') {
-        // Process the natural language input with AI
-        const extractedData = await AIService.processInteraction(inputText);
+      if (conversationState === 'ready') {
+        // Process the natural language input with advanced AI
+        const aiResponse = await AIService.processInteraction(inputText);
         
-        // Add selected image to profile data if available
-        if (selectedImage) {
-          extractedData.profile.photoUri = selectedImage.uri;
-        }
-        
-        // Save to database
-        const profileId = await DatabaseService.createOrUpdateProfile(extractedData.profile);
-        
-        // Save interaction
-        await DatabaseService.addInteraction({
-          profileId,
-          description: inputText,
-          extractedData: JSON.stringify(extractedData),
-          createdAt: new Date().toISOString()
-        });
-
-        // Store the data for potential reminder creation
-        setLastProcessedData({ ...extractedData, profileId });
-        
-        // Add AI response with reminder suggestion
-        const aiMessage = `Great! I've added ${extractedData.profile.name} to your contacts.`;
-        let reminderMessage = '';
-        
-        if (extractedData.suggestedReminder) {
-          reminderMessage = `\n\nI suggest creating a reminder: "${extractedData.suggestedReminder.title}" - ${extractedData.suggestedReminder.description}. Should I set this for ${extractedData.suggestedReminder.suggestedDays} days from now?`;
-          setConversationState('awaiting_reminder_response');
-        }
-        
+        // Add user message to chat
         setChatMessages(prev => [...prev, { 
           type: 'user', 
           text: inputText 
-        }, { 
-          type: 'ai', 
-          text: aiMessage + reminderMessage
         }]);
         
-        if (!extractedData.suggestedReminder) {
-          // No reminder suggested, show success and reset
+        // Handle different intents
+        if (aiResponse.intent === 'clarify') {
+          // AI needs clarification
+          setChatMessages(prev => [...prev, { 
+            type: 'ai', 
+            text: `${aiResponse.response}\n\n${aiResponse.clarification}`
+          }]);
+          
+          setInputText('');
+          inputRef.current?.focus();
+        } else if (aiResponse.confidence < 0.7) {
+          // Low confidence, ask for confirmation
+          setPendingActions(aiResponse);
+          setConversationState('awaiting_confirmation');
+          
+          const summary = this.generateActionSummary(aiResponse.actions);
+          setChatMessages(prev => [...prev, { 
+            type: 'ai', 
+            text: `I think I understand, but let me confirm:\n\n${summary}\n\nIs this correct? Say 'yes' to proceed or 'no' to try again.`
+          }]);
+          
+          setInputText('');
+        } else {
+          // High confidence, execute actions
+          await this.executeActions(aiResponse.actions);
+          
+          setChatMessages(prev => [...prev, { 
+            type: 'ai', 
+            text: aiResponse.response
+          }]);
+          
+          // Reset after successful execution
           setTimeout(() => {
             setInputText('');
             setChatMessages([]);
@@ -98,45 +99,221 @@ export default function AddInteractionScreen() {
             inputRef.current?.focus();
           }, 2000);
         }
-      } else if (conversationState === 'awaiting_reminder_response') {
-        // Process reminder response
-        const reminderResponse = await AIService.processReminderResponse(inputText, lastProcessedData);
+      } else if (conversationState === 'awaiting_confirmation') {
+        // Handle confirmation response
+        const lowerInput = inputText.toLowerCase().trim();
         
-        // Add both user message and AI response
-        setChatMessages(prev => [...prev, { 
-          type: 'user', 
-          text: inputText 
-        }, { 
-          type: 'ai', 
-          text: reminderResponse.response 
-        }]);
-        
-        if (reminderResponse.action === 'create') {
-          // Create the reminder
-          await DatabaseService.createReminder({
-            profileId: lastProcessedData.profileId,
-            title: reminderResponse.title,
-            description: reminderResponse.description,
-            scheduledFor: reminderResponse.scheduledFor,
-            type: reminderResponse.type
-          });
-        }
-        
-        // Reset conversation
-        setTimeout(() => {
-          setConversationState('initial');
-          setLastProcessedData(null);
+        if (lowerInput.includes('yes') || lowerInput.includes('correct') || lowerInput.includes('right')) {
+          // Execute pending actions
+          await this.executeActions(pendingActions.actions);
+          
+          setChatMessages(prev => [...prev, { 
+            type: 'user', 
+            text: inputText 
+          }, { 
+            type: 'ai', 
+            text: 'Perfect! I\'ve completed those actions for you.'
+          }]);
+          
+          // Reset conversation
+          setTimeout(() => {
+            setConversationState('ready');
+            setPendingActions(null);
+            setInputText('');
+            setChatMessages([]);
+            setSelectedImage(null);
+            inputRef.current?.focus();
+          }, 2000);
+        } else if (lowerInput.includes('no') || lowerInput.includes('wrong') || lowerInput.includes('incorrect')) {
+          // Cancel and ask for clarification
+          setChatMessages(prev => [...prev, { 
+            type: 'user', 
+            text: inputText 
+          }, { 
+            type: 'ai', 
+            text: 'No problem! Please tell me again what you\'d like me to do, and I\'ll try to understand better.'
+          }]);
+          
+          setConversationState('ready');
+          setPendingActions(null);
           setInputText('');
-          setChatMessages([]);
-          setSelectedImage(null);
-          inputRef.current?.focus();
-        }, 2000);
+        } else {
+          // Unclear response, ask again
+          setChatMessages(prev => [...prev, { 
+            type: 'user', 
+            text: inputText 
+          }, { 
+            type: 'ai', 
+            text: 'I\'m not sure if that\'s a yes or no. Please say "yes" to proceed or "no" to start over.'
+          }]);
+          
+          setInputText('');
+        }
       }
     } catch (error) {
       console.error('Error processing interaction:', error);
-      Alert.alert('Error', 'Failed to process interaction. Please try again.');
+      
+      setChatMessages(prev => [...prev, { 
+        type: 'user', 
+        text: inputText 
+      }, { 
+        type: 'ai', 
+        text: 'Sorry, I encountered an error processing your request. Please try again or be more specific about what you need.'
+      }]);
+      
+      setInputText('');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const generateActionSummary = (actions) => {
+    return actions.map(action => {
+      switch (action.type) {
+        case 'create_profile':
+          return `• Add ${action.data.name} to your ${action.data.relationship} contacts${action.data.job ? ` (${action.data.job})` : ''}`;
+        case 'update_profile':
+          return `• Update ${action.data.name}'s profile information`;
+        case 'create_reminder':
+          return `• Create reminder: "${action.data.title}" for ${new Date(action.data.scheduledFor).toLocaleDateString()}`;
+        case 'schedule_text':
+          return `• Schedule text to ${action.data.phoneNumber}: "${action.data.message}" for ${new Date(action.data.scheduledFor).toLocaleDateString()}`;
+        default:
+          return `• ${action.type}`;
+      }
+    }).join('\n');
+  };
+
+  const executeActions = async (actions) => {
+    for (const action of actions) {
+      try {
+        switch (action.type) {
+          case 'create_profile':
+            await this.executeCreateProfile(action.data);
+            break;
+          case 'update_profile':
+            await this.executeUpdateProfile(action.data);
+            break;
+          case 'create_reminder':
+            await this.executeCreateReminder(action.data);
+            break;
+          case 'schedule_text':
+            await this.executeScheduleText(action.data);
+            break;
+          default:
+            console.warn('Unknown action type:', action.type);
+        }
+      } catch (error) {
+        console.error(`Error executing ${action.type}:`, error);
+        throw error;
+      }
+    }
+  };
+
+  const executeCreateProfile = async (profileData) => {
+    // Add selected image to profile data if available
+    if (selectedImage) {
+      profileData.photoUri = selectedImage.uri;
+    }
+    
+    // Convert arrays to proper format for database
+    const dbProfileData = {
+      ...profileData,
+      tags: profileData.tags || [],
+      parents: profileData.parents || [],
+      kids: profileData.kids || [],
+      siblings: profileData.siblings || [],
+      foodLikes: profileData.likes || [],
+      foodDislikes: profileData.dislikes || [],
+      interests: profileData.interests || [],
+      lastContactDate: new Date().toISOString(),
+    };
+    
+    const profileId = await DatabaseService.createOrUpdateProfile(dbProfileData);
+    
+    // Save interaction record
+    await DatabaseService.addInteraction({
+      profileId,
+      description: inputText,
+      extractedData: JSON.stringify(profileData),
+      createdAt: new Date().toISOString()
+    });
+    
+    return profileId;
+  };
+
+  const executeUpdateProfile = async (profileData) => {
+    // Similar to create but for updates
+    // This would require finding the existing profile first
+    const dbProfileData = {
+      ...profileData,
+      tags: profileData.tags || [],
+      parents: profileData.parents || [],
+      kids: profileData.kids || [],
+      siblings: profileData.siblings || [],
+      foodLikes: profileData.likes || [],
+      foodDislikes: profileData.dislikes || [],
+      interests: profileData.interests || [],
+      updatedAt: new Date().toISOString(),
+    };
+    
+    await DatabaseService.createOrUpdateProfile(dbProfileData);
+  };
+
+  const executeCreateReminder = async (reminderData) => {
+    const scheduledDate = new Date(reminderData.scheduledFor);
+    
+    const reminderId = await DatabaseService.createReminder({
+      profileId: reminderData.profileId,
+      title: reminderData.title,
+      description: reminderData.description,
+      type: reminderData.reminderType || 'general',
+      scheduledFor: scheduledDate,
+    });
+    
+    // Schedule notification
+    try {
+      const result = await scheduleReminder({
+        title: reminderData.title,
+        body: reminderData.description || 'You have a reminder',
+        datePick: scheduledDate,
+        timePick: scheduledDate,
+        reminderId: reminderId.toString(),
+      });
+      
+      if (result.id) {
+        await DatabaseService.updateReminderNotificationId(reminderId, result.id);
+      }
+    } catch (notificationError) {
+      console.error('Failed to schedule reminder notification:', notificationError);
+    }
+  };
+
+  const executeScheduleText = async (textData) => {
+    const scheduledDate = new Date(textData.scheduledFor);
+    
+    const textId = await DatabaseService.createScheduledText({
+      profileId: textData.profileId,
+      phoneNumber: textData.phoneNumber,
+      message: textData.message,
+      scheduledFor: scheduledDate,
+    });
+    
+    // Schedule notification
+    try {
+      const result = await scheduleScheduledText({
+        messageId: textId.toString(),
+        phoneNumber: textData.phoneNumber,
+        message: textData.message,
+        datePick: scheduledDate,
+        timePick: scheduledDate,
+      });
+      
+      if (result.id) {
+        await DatabaseService.updateScheduledTextNotificationId(textId, result.id);
+      }
+    } catch (notificationError) {
+      console.error('Failed to schedule text notification:', notificationError);
     }
   };
 
@@ -314,10 +491,10 @@ export default function AddInteractionScreen() {
         >
           <View style={styles.welcomeMessage}>
             <Text style={[styles.welcomeText, { color: theme.text }]}>
-              Tell me about someone in your life
+              What can I help you with today?
             </Text>
             <Text style={[styles.welcomeSubtext, { color: theme.primary }]}>
-              I'll help you remember the important details and stay connected
+              I can add contacts, create reminders, schedule texts, and more - just tell me what you need!
             </Text>
           </View>
 
@@ -340,7 +517,7 @@ export default function AddInteractionScreen() {
             <View style={styles.messageContainer}>
               <View style={[styles.botMessage, { backgroundColor: theme.accent }]}>
                 <Text style={[styles.messageText, { color: theme.text }]}>
-                  {conversationState === 'initial' ? 'Processing your interaction with AI...' : 'Processing your response...'}
+                  {conversationState === 'ready' ? 'Processing your request with AI...' : 'Processing your response...'}
                 </Text>
               </View>
             </View>
@@ -374,7 +551,7 @@ export default function AddInteractionScreen() {
               ref={inputRef}
               style={[styles.textInput, { color: theme.text }]}
               multiline
-              placeholder={conversationState === 'initial' ? "Who did you meet today..." : "Your response..."}
+              placeholder={conversationState === 'ready' ? "Add Sarah to my contacts, remind me to call mom tomorrow, schedule a text..." : "Your response..."}
               placeholderTextColor={theme.primary}
               value={inputText}
               onChangeText={setInputText}
@@ -449,6 +626,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 22,
+    paddingHorizontal: 20,
   },
   messageContainer: {
     marginBottom: 16,

@@ -22,135 +22,139 @@ class AIServiceClass {
       // Check if OpenAI is available
       if (!openai) {
         console.log('OpenAI not configured, using mock processing');
-        return this.mockGPTResponse(inputText);
+        return this.mockAdvancedResponse(inputText);
       }
 
-      // Use ChatGPT 3.5-turbo to process the interaction
+      // Use GPT-4o for advanced natural language understanding
       const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
-            content: `You are an expert AI assistant that extracts comprehensive structured information from natural language descriptions of social interactions. You excel at identifying names, relationships, personal details, preferences, and family information with high accuracy.
+            content: `You are ARMi (Artificial Relationship Management Intelligence), an advanced AI assistant that helps users manage their relationships through natural language commands. You excel at understanding complex, informal, slang, and formal requests to perform various relationship management tasks.
 
-🚨 CRITICAL NAME EXTRACTION RULE - NEVER VIOLATE THIS:
-You MUST extract names EXACTLY as they appear in the input text. DO NOT autocorrect, simplify, or change spellings.
-- If input says "Sarah", you MUST return "Sarah" (NOT "Sara")
-- If input says "Michael", you MUST return "Michael" (NOT "Mike") 
-- If input says "Katherine", you MUST return "Katherine" (NOT "Kate")
-VIOLATION OF THIS RULE IS A CRITICAL ERROR. Always preserve exact spelling.
+🎯 YOUR CORE CAPABILITIES:
+1. CREATE/UPDATE PROFILES: Add new people or update existing ones with comprehensive details
+2. CREATE REMINDERS: Set up reminders for follow-ups, birthdays, important events
+3. SCHEDULE TEXTS: Schedule text messages to be sent at specific times
+4. CLARIFY REQUESTS: Ask for more information when requests are unclear
 
-CRITICAL RULES:
-1. NAME EXTRACTION: Identify the correct person's name by looking for:
-   - Names after interaction verbs: "met Sarah", "talked to Mike", "saw Jennifer"
-   - Names in possessive contexts: "Sarah's birthday", "Mike's job"
-   - Names with descriptors: "Sarah who works at", "Mike the engineer"
-   - Look for proper nouns that are clearly person names
-   - NEVER use time references, locations, activities, or descriptive words as names
-   - If text says "Me and [Name]" or "I and [Name]", extract [Name]
-   - 🚨 ULTRA-CRITICAL: Extract the EXACT spelling of the name - if input says "Sarah", return "Sarah", NOT "Sara"
-   - Do not abbreviate, truncate, or modify names in any way
-   - Ignore words like "yesterday", "today", "tomorrow", "bar", "restaurant", etc.
+🧠 INTELLIGENCE GUIDELINES:
+- Understand slang, informal language, abbreviations, and context clues
+- Make smart inferences from context (e.g., "met Sarah at a club" → Sarah likely enjoys nightlife/clubs)
+- Extract ALL available information but NEVER assume details not present or implied
+- Handle multi-intent requests (e.g., "Add John to my contacts and remind me to call him tomorrow")
+- Parse natural language dates/times into proper formats
+- Distinguish between creating new profiles vs updating existing ones
 
-2. RELATIONSHIP MAPPING: Determine relationship from context clues:
-   - Family: mom, dad, sister, brother, cousin, aunt, uncle, grandmother, grandfather, family
-   - Friend: friend, buddy, pal, bestie, close friend, old friend
-   - Partner: boyfriend, girlfriend, husband, wife, partner, spouse, significant other
-   - Coworker: coworker, colleague, boss, manager, teammate, work friend
-   - Neighbor: neighbor, lives next door, down the street
-   - Acquaintance: just met, new person, someone I know
+🔍 EXTRACTION RULES:
+- NAMES: Extract EXACTLY as written - preserve spelling, capitalization, nicknames
+- AGE: Only if explicitly mentioned as a number (e.g., "she's 25", "around 30")
+- RELATIONSHIPS: Map to: family/friend/partner/coworker/neighbor/acquaintance
+- PREFERENCES: Infer likes/dislikes from context and activities mentioned
+- CONTACT INFO: Extract phone numbers, emails, social media handles
+- FAMILY: Extract kids, siblings, parents only if mentioned
+- WORK: Extract job titles, companies, career details
+- DATES/TIMES: Parse natural language into ISO 8601 format
 
-3. COMPREHENSIVE EXTRACTION: Extract ALL available information including:
-   - Personal details (age, job, contact info)
-   - Family information (kids, siblings, parents)
-   - Preferences (likes, dislikes, hobbies, interests)
-   - Physical descriptions and personality traits
-   - Life events and important dates
-
-4. SMART PARSING: Handle conversational, messy input gracefully
-5. CONTEXT AWARENESS: Use surrounding context to disambiguate unclear information
-
-CRITICAL FIELD MAPPING RULES:
-- "name": ONLY the person's actual name (e.g., "Sarah", "Mike", "Jennifer")
-- "age": ONLY if explicitly mentioned as a number (e.g., "she's 25", "35 years old"). Return null if not mentioned.
-- "job": ONLY if occupation is mentioned (e.g., "engineer", "teacher", "doctor"). Return empty string if not mentioned.
-- "tags": Descriptive words about the person (e.g., ["social", "parent", "outgoing"]), NOT the entire input text
-- "notes": The full context for reference, but other fields should contain ONLY the specific extracted information
-
-Extract information and return it as a JSON object in this exact format:
+📋 RESPONSE FORMAT:
+Always return a JSON object with this exact structure:
 
 {
-  "name": "string (REQUIRED - the actual person's name, NOT time references)",
-  "relationship": "string (family/friend/partner/coworker/neighbor/acquaintance)",
-  "age": "number or null (ONLY if age is explicitly mentioned as a number, otherwise null)",
-  "phone": "string (phone number if mentioned)",
-  "email": "string (email if mentioned)",
-  "job": "string (occupation/work if mentioned, empty string if not mentioned)",
-  "kids": ["array of children names/descriptions if mentioned"],
-  "siblings": ["array of sibling names/descriptions if mentioned"],
-  "likes": ["array of things they like/enjoy"],
-  "dislikes": ["array of things they dislike/avoid"],
-  "tags": ["array of personality traits, descriptors, or categories - NOT the input text"],
-  "interests": ["array of hobbies/interests mentioned"],
-  "notes": "string (any additional context, quotes, or details that don't fit other fields)",
-  "suggestedReminder": {
-    "title": "string (suggested reminder title)",
-    "description": "string (suggested reminder description)",
-    "type": "string (general/health/celebration/career/life_event)",
-    "suggestedDays": "number (days from now to schedule)"
-  }
+  "intent": "create_profile" | "update_profile" | "create_reminder" | "schedule_text" | "multi_action" | "clarify",
+  "confidence": number (0.0-1.0),
+  "actions": [
+    {
+      "type": "create_profile" | "update_profile" | "create_reminder" | "schedule_text",
+      "data": {
+        // Profile data for create_profile/update_profile
+        "name": "string (REQUIRED for profiles)",
+        "age": number | null,
+        "phone": "string | null",
+        "email": "string | null", 
+        "relationship": "family|friend|partner|coworker|neighbor|acquaintance",
+        "job": "string | null",
+        "notes": "string | null",
+        "tags": ["array of descriptive tags"],
+        "kids": ["array of children names/descriptions"],
+        "siblings": ["array of sibling names"],
+        "parents": ["array of parent names"],
+        "likes": ["array of things they enjoy"],
+        "dislikes": ["array of things they dislike"],
+        "interests": ["array of hobbies/interests"],
+        "instagram": "string | null",
+        "snapchat": "string | null", 
+        "twitter": "string | null",
+        "tiktok": "string | null",
+        "facebook": "string | null",
+        "birthday": "string | null (MM/DD/YYYY format)",
+        "lastContactDate": "ISO date string",
+        
+        // Reminder data for create_reminder
+        "title": "string (REQUIRED for reminders)",
+        "description": "string | null",
+        "reminderType": "general|health|celebration|career|life_event",
+        "scheduledFor": "ISO date string (REQUIRED for reminders)",
+        "profileId": number | null,
+        
+        // Scheduled text data for schedule_text
+        "phoneNumber": "string (REQUIRED for texts)",
+        "message": "string (REQUIRED for texts)",
+        "scheduledFor": "ISO date string (REQUIRED for texts)",
+        "profileId": number | null
+      }
+    }
+  ],
+  "response": "string (conversational response to user)",
+  "clarification": "string | null (what you need clarified if intent is 'clarify')"
 }
 
-EXAMPLES:
+🎯 INTENT DETECTION EXAMPLES:
 
-Input: "Me and Sarah met yesterday at the bar. She likes twisted shots and margaritas. Has 2 kids, 0 siblings. Phone number is 111-222-3333."
-🚨 CRITICAL: The name is "Sarah" - you MUST return "Sarah" exactly, NOT "Sara"
-Output: {
-  "name": "Sarah",
-  "relationship": "acquaintance",
-  "age": null,
-  "phone": "111-222-3333",
-  "email": null,
-  "job": null,
-  "kids": ["child 1", "child 2"],
-  "siblings": [],
-  "likes": ["twisted shots", "margaritas"],
-  "dislikes": [],
-  "tags": ["parent", "social"],
-  "interests": ["drinks", "nightlife"],
-  "notes": "Met at bar yesterday. Enjoys going out for drinks.",
-  "suggestedReminder": {
-    "title": "Follow up with Sarah",
-    "description": "Check in and see how she's doing with the kids",
-    "type": "general",
-    "suggestedDays": 7
-  }
-}
+CREATE_PROFILE:
+- "I met Sarah at the gym yesterday"
+- "Add my coworker Mike to my contacts"
+- "New person: Jennifer, 28, works at Google"
 
-Input: "My coworker Mike got promoted to senior engineer. He's around 35, married with twin boys, loves craft beer and hates meetings. His wife is a teacher."
-Output: {
-  "name": "Mike",
-  "relationship": "coworker",
-  "age": 35,
-  "phone": "",
-  "email": "",
-  "job": "senior engineer",
-  "kids": ["twin boys"],
-  "siblings": [],
-  "likes": ["craft beer"],
-  "dislikes": ["meetings"],
-  "tags": ["promoted", "married", "father", "engineer"],
-  "interests": ["craft beer"],
-  "notes": "Just got promoted to senior engineer. Wife is a teacher. Has twin boys.",
-  "suggestedReminder": {
-    "title": "Congratulate Mike on promotion",
-    "description": "Follow up on his new role and see how he's settling in",
-    "type": "career",
-    "suggestedDays": 3
-  }
-}
+UPDATE_PROFILE:
+- "Update Sarah's job to marketing manager"
+- "Mike got a new phone number: 555-1234"
+- "Add a note to Jennifer that she loves hiking"
 
-CRITICAL: Always extract the actual person's name from the text. For "Me and Sarah met yesterday", the name is "Sarah". Never use "yesterday", "today", "tomorrow", locations, or activities as names. Map information to the most appropriate fields and put any remaining context in notes. Always suggest an appropriate reminder based on the context.`
+CREATE_REMINDER:
+- "Remind me to call mom next week"
+- "Set a reminder to follow up with Sarah in 3 days"
+- "Birthday reminder for Mike on March 15th"
+
+SCHEDULE_TEXT:
+- "Schedule a text to Sarah tomorrow saying 'Happy birthday!'"
+- "Send Mike a message next Friday at 2pm"
+- "Text Jennifer 'How was your vacation?' on Monday"
+
+MULTI_ACTION:
+- "Add Sarah to my contacts and remind me to call her tomorrow"
+- "Update Mike's job and schedule a congratulations text"
+
+CLARIFY:
+- "Do something with Sarah" (unclear intent)
+- "Remind me about that thing" (missing details)
+
+🕐 DATE/TIME PARSING:
+Convert natural language to ISO 8601:
+- "tomorrow" → next day at 12:00 PM
+- "next week" → 7 days from now at 12:00 PM  
+- "Friday at 3pm" → next Friday at 3:00 PM
+- "in 2 hours" → current time + 2 hours
+- "March 15th" → March 15th of current/next year at 12:00 PM
+
+🎨 SMART INFERENCE EXAMPLES:
+- "met at a club" → tags: ["social"], likes: ["nightlife", "dancing"]
+- "works at Google" → job: "Software Engineer" (if not specified), tags: ["tech"]
+- "has twin boys" → kids: ["twin boy 1", "twin boy 2"], tags: ["parent"]
+- "loves hiking" → likes: ["hiking"], interests: ["outdoors"], tags: ["outdoorsy"]
+- "can't stand spicy food" → dislikes: ["spicy food"]
+
+Remember: Be intelligent but not presumptuous. Extract what's clearly stated or strongly implied, but don't fabricate details.`
           },
           {
             role: "user",
@@ -158,7 +162,7 @@ CRITICAL: Always extract the actual person's name from the text. For "Me and Sar
           }
         ],
         temperature: 0.1,
-        max_tokens: 1000
+        max_tokens: 2000
       });
 
       const response = completion.choices[0]?.message?.content;
@@ -169,36 +173,14 @@ CRITICAL: Always extract the actual person's name from the text. For "Me and Sar
       // Parse the JSON response
       const parsedResponse = JSON.parse(response);
       
-      // Convert to the format expected by the app
-      const profile = {
-        name: parsedResponse.name || 'Unknown Person',
-        age: parsedResponse.age > 0 ? parsedResponse.age : null,
-        phone: parsedResponse.phone || null,
-        email: parsedResponse.email || null,
-        relationship: parsedResponse.relationship || 'acquaintance',
-        job: parsedResponse.job || null,
-        notes: parsedResponse.notes || null,
-        kids: parsedResponse.kids || [],
-        siblings: parsedResponse.siblings || [],
-        likes: parsedResponse.likes || [],
-        dislikes: parsedResponse.dislikes || [],
-        tags: parsedResponse.tags || [],
-        interests: parsedResponse.interests || [],
-        lastContactDate: new Date().toISOString(),
-        isNew: true
-      };
-
-      return {
-        profile,
-        suggestedReminder: parsedResponse.suggestedReminder || null,
-        sentiment: this.analyzeSentiment(inputText),
-        confidence: 0.95
-      };
+      console.log('🤖 AI Response:', parsedResponse);
+      
+      return parsedResponse;
     } catch (error) {
       console.error('Error processing with OpenAI:', error);
       
       // Fallback to mock processing if API fails
-      return this.mockGPTResponse(inputText);
+      return this.mockAdvancedResponse(inputText);
     }
   }
 
@@ -209,11 +191,11 @@ CRITICAL: Always extract the actual person's name from the text. For "Me and Sar
       }
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
-            content: `You are an AI assistant helping users manage reminders. The user is responding to a reminder suggestion with natural language.
+            content: `You are ARMi, helping users manage reminder responses. The user is responding to a reminder suggestion with natural language.
 
 CONTEXT: The user was suggested a reminder and is now responding naturally with their preferences.
 
@@ -234,56 +216,6 @@ Return JSON in this format:
   "response": "string (conversational response to user)"
 }
 
-Examples:
-User Input: "yes that works perfect"
-Output: {
-  "action": "create",
-  "title": "Follow up with Sarah",
-  "description": "Check in and see how she's doing",
-  "type": "general", 
-  "scheduledFor": "2024-08-08T12:00:00.000Z",
-  "response": "Perfect! I'll create a reminder to follow up with Sarah for next week."
-}
-
-User Input: "nah lets schedule it for next thursday at 4pm"
-Output: {
-  "action": "create",
-  "title": "Follow up with Sarah", 
-  "description": "Check in and see how she's doing",
-  "type": "general",
-  "scheduledFor": "2024-08-15T16:00:00.000Z",
-  "response": "Got it! I'll set the reminder for next Thursday at 4pm instead."
-}
-
-User Input: "no thats okay"
-Output: {
-  "action": "cancel",
-  "title": null,
-  "description": null,
-  "type": null,
-  "scheduledFor": null,
-  "response": "No problem! I won't create a reminder for this contact."
-}
-
-User Input: "yes but make it for tomorrow at 3pm"
-Output: {
-  "action": "create",
-  "title": "Follow up with Sarah",
-  "description": "Check in and see how she's doing", 
-  "type": "general",
-  "scheduledFor": "2024-08-02T15:00:00.000Z",
-  "response": "Great! I'll create the reminder for tomorrow at 3pm instead."
-}
-
-User Input: "sure but change it to a celebration reminder"
-Output: {
-  "action": "create",
-  "title": "Follow up with Sarah",
-  "description": "Check in and see how she's doing",
-  "type": "celebration", 
-  "scheduledFor": "2024-08-08T12:00:00.000Z",
-  "response": "Perfect! I'll create a celebration reminder for next week."
-}
 Handle natural language time expressions like:
 - "tomorrow", "next week", "next Thursday", "in 3 days"
 - "at 4pm", "at 2:30", "in the morning", "this evening"
@@ -314,6 +246,55 @@ Always be conversational and confirm the user's intent clearly.`
     }
   }
 
+  private mockAdvancedResponse(inputText: string) {
+    // Enhanced mock that simulates the new multi-intent structure
+    const lowerText = inputText.toLowerCase();
+    
+    // Detect intent from input
+    let intent = 'create_profile';
+    let actions = [];
+    
+    if (lowerText.includes('remind') || lowerText.includes('reminder')) {
+      intent = 'create_reminder';
+      actions.push({
+        type: 'create_reminder',
+        data: {
+          title: 'Follow up reminder',
+          description: 'Check in with contact',
+          reminderType: 'general',
+          scheduledFor: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          profileId: null
+        }
+      });
+    } else if (lowerText.includes('text') || lowerText.includes('message') || lowerText.includes('send')) {
+      intent = 'schedule_text';
+      actions.push({
+        type: 'schedule_text',
+        data: {
+          phoneNumber: '555-0123',
+          message: 'Hey! How are you?',
+          scheduledFor: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          profileId: null
+        }
+      });
+    } else {
+      // Default to profile creation with enhanced extraction
+      const extractedData = this.extractInformation(inputText);
+      actions.push({
+        type: 'create_profile',
+        data: extractedData
+      });
+    }
+    
+    return {
+      intent,
+      confidence: 0.85,
+      actions,
+      response: `I've processed your request using mock AI. In production, this would use GPT-4o for advanced understanding.`,
+      clarification: null
+    };
+  }
+
   private mockReminderResponse(inputText: string, context: any) {
     const lowerText = inputText.toLowerCase();
     
@@ -339,23 +320,6 @@ Always be conversational and confirm the user's intent clearly.`
       type: context.suggestedReminder?.type || 'general',
       scheduledFor: tomorrow.toISOString(),
       response: "I'll create that reminder for you!"
-    };
-  }
-
-  private mockGPTResponse(inputText: string) {
-    // Keep the existing mock implementation as fallback
-    const extractedData = this.extractInformation(inputText);
-    
-    return {
-      profile: extractedData,
-      suggestedReminder: {
-        title: `Follow up with ${extractedData.name}`,
-        description: 'Check in and maintain connection',
-        type: 'general',
-        suggestedDays: 7
-      },
-      sentiment: this.analyzeSentiment(inputText),
-      confidence: 0.85
     };
   }
 
