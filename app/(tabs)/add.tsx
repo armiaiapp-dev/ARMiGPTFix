@@ -75,7 +75,7 @@ export default function AddInteractionScreen() {
           setPendingActions(aiResponse);
           setConversationState('awaiting_confirmation');
           
-          const summary = this.generateActionSummary(aiResponse.actions);
+          const summary = generateActionSummary(aiResponse.actions);
           setChatMessages(prev => [...prev, { 
             type: 'ai', 
             text: `I think I understand, but let me confirm:\n\n${summary}\n\nIs this correct? Say 'yes' to proceed or 'no' to try again.`
@@ -84,7 +84,7 @@ export default function AddInteractionScreen() {
           setInputText('');
         } else {
           // High confidence, execute actions
-          await this.executeActions(aiResponse.actions);
+          await executeActions(aiResponse.actions);
           
           setChatMessages(prev => [...prev, { 
             type: 'ai', 
@@ -105,7 +105,7 @@ export default function AddInteractionScreen() {
         
         if (lowerInput.includes('yes') || lowerInput.includes('correct') || lowerInput.includes('right')) {
           // Execute pending actions
-          await this.executeActions(pendingActions.actions);
+          await executeActions(pendingActions.actions);
           
           setChatMessages(prev => [...prev, { 
             type: 'user', 
@@ -167,7 +167,7 @@ export default function AddInteractionScreen() {
     }
   };
 
-  const generateActionSummary = (actions) => {
+  const generateActionSummary = (actions: any[]) => {
     return actions.map(action => {
       switch (action.type) {
         case 'create_profile':
@@ -184,21 +184,21 @@ export default function AddInteractionScreen() {
     }).join('\n');
   };
 
-  const executeActions = async (actions) => {
+  const executeActions = async (actions: any[]) => {
     for (const action of actions) {
       try {
         switch (action.type) {
           case 'create_profile':
-            await this.executeCreateProfile(action.data);
+            await executeCreateProfile(action.data);
             break;
           case 'update_profile':
-            await this.executeUpdateProfile(action.data);
+            await executeUpdateProfile(action.data);
             break;
           case 'create_reminder':
-            await this.executeCreateReminder(action.data);
+            await executeCreateReminder(action.data);
             break;
           case 'schedule_text':
-            await this.executeScheduleText(action.data);
+            await executeScheduleText(action.data);
             break;
           default:
             console.warn('Unknown action type:', action.type);
@@ -210,7 +210,7 @@ export default function AddInteractionScreen() {
     }
   };
 
-  const executeCreateProfile = async (profileData) => {
+  const executeCreateProfile = async (profileData: any) => {
     // Add selected image to profile data if available
     if (selectedImage) {
       profileData.photoUri = selectedImage.uri;
@@ -242,7 +242,7 @@ export default function AddInteractionScreen() {
     return profileId;
   };
 
-  const executeUpdateProfile = async (profileData) => {
+  const executeUpdateProfile = async (profileData: any) => {
     // Similar to create but for updates
     // This would require finding the existing profile first
     const dbProfileData = {
@@ -260,7 +260,7 @@ export default function AddInteractionScreen() {
     await DatabaseService.createOrUpdateProfile(dbProfileData);
   };
 
-  const executeCreateReminder = async (reminderData) => {
+  const executeCreateReminder = async (reminderData: any) => {
     const scheduledDate = new Date(reminderData.scheduledFor);
     
     const reminderId = await DatabaseService.createReminder({
@@ -289,7 +289,7 @@ export default function AddInteractionScreen() {
     }
   };
 
-  const executeScheduleText = async (textData) => {
+  const executeScheduleText = async (textData: any) => {
     const scheduledDate = new Date(textData.scheduledFor);
     
     const textId = await DatabaseService.createScheduledText({
